@@ -64,7 +64,6 @@ LABEL resty_eval_post_make="${RESTY_EVAL_POST_MAKE}"
 # These are not intended to be user-specified
 ARG _RESTY_CONFIG_DEPS="--with-openssl=/tmp/openssl-${RESTY_OPENSSL_VERSION} --with-pcre=/tmp/pcre-${RESTY_PCRE_VERSION}"
 
-
 # 1) Install apt dependencies
 # 2) Download and untar OpenSSL, PCRE, and OpenResty
 # 3) Build OpenResty
@@ -88,12 +87,16 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update \
         zlib1g-dev \
         ${RESTY_ADD_PACKAGE_BUILDDEPS} \
         ${RESTY_ADD_PACKAGE_RUNDEPS} \
+        libldap2-dev \
     && cd /tmp \
     && if [ -n "${RESTY_EVAL_PRE_CONFIGURE}" ]; then eval $(echo ${RESTY_EVAL_PRE_CONFIGURE}); fi \
     && curl -fSL https://www.openssl.org/source/openssl-${RESTY_OPENSSL_VERSION}.tar.gz -o openssl-${RESTY_OPENSSL_VERSION}.tar.gz \
     && tar xzf openssl-${RESTY_OPENSSL_VERSION}.tar.gz \
     && curl -fSL https://ftp.pcre.org/pub/pcre/pcre-${RESTY_PCRE_VERSION}.tar.gz -o pcre-${RESTY_PCRE_VERSION}.tar.gz \
     && tar xzf pcre-${RESTY_PCRE_VERSION}.tar.gz
+RUN cd /tmp \
+    && curl -fSL https://github.com/SerenaFeng/nginx-auth-ldap/archive/v1.0.tar.gz -o nginx-auth-ldap-v1.0.tar.gz \
+    && tar xzf nginx-auth-ldap-v1.0.tar.gz
 RUN cd /tmp \
     && curl -fSL https://openresty.org/download/openresty-${RESTY_VERSION}.tar.gz -o openresty-${RESTY_VERSION}.tar.gz \
     && tar xzf openresty-${RESTY_VERSION}.tar.gz \
@@ -125,6 +128,8 @@ RUN cd /tmp \
     && DEBIAN_FRONTEND=noninteractive apt-get autoremove -y \
     && ln -sf /dev/stdout /usr/local/openresty/nginx/logs/access.log \
     && ln -sf /dev/stderr /usr/local/openresty/nginx/logs/error.log
+RUN apt-get install -y libyaml-dev \
+    && /usr/local/openresty/luajit/bin/luarocks install lyaml
 
 # Add additional binaries into PATH for convenience
 ENV PATH=$PATH:/usr/local/openresty/luajit/bin:/usr/local/openresty/nginx/sbin:/usr/local/openresty/bin
@@ -141,6 +146,7 @@ ENV LUA_CPATH="/usr/local/openresty/site/lualib/?.so;/usr/local/openresty/lualib
 # Copy nginx configuration files
 COPY nginx.conf /usr/local/openresty/nginx/conf/nginx.conf
 COPY nginx.vh.default.conf /etc/nginx/conf.d/default.conf
+ADD simpleauth /usr/local/openresty/lualib/
 
 CMD ["/usr/local/openresty/bin/openresty", "-g", "daemon off;"]
 
